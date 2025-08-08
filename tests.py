@@ -1,20 +1,16 @@
-from functions.get_function_content import get_file_content
+from functions.write_file import write_file
 
 def run_tests():
-    print("Test 1: main.py")
-    print(get_file_content("calculator", "main.py"))  # Preview first 300 chars
+    print("Test 1: Write to lorem.txt in root")
+    print(write_file("calculator", "lorem.txt", "wait, this isn't lorem ipsum"))
     print("\n" + "="*50 + "\n")
 
-    print("Test 2: pkg/calculator.py")
-    print(get_file_content("calculator", "pkg/calculator.py"))
+    print("Test 2: Write to pkg/morelorem.txt")
+    print(write_file("calculator", "pkg/morelorem.txt", "lorem ipsum dolor sit amet"))
     print("\n" + "="*50 + "\n")
 
-    print("Test 3: outside dir (/bin/cat)")
-    print(get_file_content("calculator", "/bin/cat"))
-    print("\n" + "="*50 + "\n")
-
-    print("Test 4: non-existent file")
-    print(get_file_content("calculator", "pkg/does_not_exist.py"))
+    print("Test 3: Attempt to write to /tmp/temp.txt (should fail)")
+    print(write_file("calculator", "/tmp/temp.txt", "this should not be allowed"))
     print("\n" + "="*50 + "\n")
 
 if __name__ == "__main__":
