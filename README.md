@@ -1,2 +1,2 @@
 # hotfixai
-git push from terminal
+git push from arch terminal
