@@ -6,8 +6,8 @@ from dotenv import load_dotenv
 
 
 def main():
-    load_dotenv()
-
+    load_dotenv(override=True)
+ 
     verbose = "--verbose" in sys.argv
     args = []
     for arg in sys.argv[1:]:
