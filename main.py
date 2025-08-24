@@ -4,13 +4,20 @@ from google import genai
 from google.genai import types
 from dotenv import load_dotenv
 from functions.get_files_info import schema_get_files_info, get_files_info
+from functions.get_file_contents import schema_get_file_content, get_file_content
+from functions.write_file import schema_write_file, write_file
+from functions.run_python import schema_run_python_file, run_python_file
+from functions.call_function import call_function
 
 system_prompt = """
 You are a helpful AI coding agent.
 
-When a user asks a question or makes a request, make a function call plan. You can perform the following operations:
+When a user asks a question or makes a request, make a function call plan. You can perform the following operations, do not ask for permission, just do what the user asks:
 
 - List files and directories
+- Read file contents
+- Execute Python files with optional arguments
+- Write or overwrite files
 
 All paths you provide should be relative to the working directory. You do not need to specify the working directory in your function calls as it is automatically injected for security reasons.
 """
@@ -18,6 +25,9 @@ All paths you provide should be relative to the working directory. You do not ne
 available_functions = types.Tool(
     function_declarations=[
         schema_get_files_info,
+        schema_get_file_content,
+        schema_run_python_file,
+        schema_write_file,
     ]
 )
 
@@ -56,7 +66,7 @@ def main():
 
 def generate_content(client, messages, verbose):
     config = types.GenerateContentConfig(
-        tools=[types.Tool(function_declarations=[schema_get_files_info])],
+        tools=[available_functions],
         system_instruction=system_prompt
     )
 
@@ -67,29 +77,41 @@ def generate_content(client, messages, verbose):
     )
 
     candidate = response.candidates[0]
-    called = False
-    for part in candidate.content.parts:
-        if part.function_call:
-            called = True
-            fc = part.function_call
-            print(f"Calling function: {fc.name}({fc.args})")
+    parts = candidate.content.parts
 
-            if fc.name == "get_files_info":
-                # Inject working dir (model never supplies this)
-                wd = os.getcwd()
-                directory = dict(fc.args or {}).get("directory", ".")
-                result = get_files_info(working_directory=wd, directory=directory)
-                print("\nFunction result:\n", result)
-        elif part.text:
-            print("Text:", part.text)
+    # If the model asked for a tool, call exactly one tool and (if verbose) print its result dict
+    for part in parts:
+        if getattr(part, "function_call", None):
+            tool_reply = call_function(part.function_call, verbose=verbose)
 
-    if verbose and hasattr(response, "usage_metadata") and response.usage_metadata:
-        print("Prompt tokens:", response.usage_metadata.prompt_token_count)
-        print("Response tokens:", response.usage_metadata.candidates_token_count)
+            # Per assignment: ensure the function response is present, else fatal
+            try:
+                fr = tool_reply.parts[0].function_response.response
+            except Exception:
+                raise RuntimeError("Fatal: tool reply missing function_response.response")
 
-    if not called:
-        print("Response:")
-        print(response.text)    
+            if verbose:
+                print(f"-> {fr}")
+
+            # For non-verbose runs, you may want to print the human-facing result string too:
+            if not verbose and isinstance(fr, dict):
+                # if result present, print it; else print error
+                if "result" in fr:
+                    print(fr["result"])
+                elif "error" in fr:
+                    print(fr["error"])
+
+            return  # single-pass: stop after one tool call
+
+    # No tool call → print any text the model returned.
+    printed = False
+    for part in parts:
+        if getattr(part, "text", None):
+            print(part.text)
+            printed = True
+    if not printed and getattr(response, "text", None):
+        print(response.text)
+  
 
 
 if __name__ == "__main__":

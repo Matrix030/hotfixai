@@ -1,6 +1,7 @@
 import os
-from config import MAX_CHARS
 from google.genai import types
+from functions.config import MAX_CHARS
+
 
 def get_file_content(working_directory, file_path):
     abs_working_dir = os.path.abspath(working_directory)
@@ -20,17 +21,19 @@ def get_file_content(working_directory, file_path):
     except Exception as e:
         return f'Error reading file "{file_path}": {e}'
 
-schema_get_file_content = types.FunctionDeclaration( #TODO START HERE
-    name="get_files_info",
-    description="Lists files in the specified directory along with their sizes, constrained to the working directory.",
+schema_get_file_content = types.FunctionDeclaration(
+    name="get_file_content",
+    description="Reads the content of a file within the working directory. "
+                "If the file exceeds the maximum allowed size, the content is truncated. "
+                "Errors are returned if the file is outside the working directory or invalid.",
     parameters=types.Schema(
         type=types.Type.OBJECT,
         properties={
-            "directory": types.Schema(
+            "file_path": types.Schema(
                 type=types.Type.STRING,
-                description="The directory to list files from, relative to the working directory. If not provided, lists files in the working directory itself.",
+                description="The path to the file, relative to the working directory.",
             ),
         },
+        required=["file_path"],
     ),
 )
-
