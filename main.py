@@ -3,7 +3,7 @@ import os
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
-from functions.get_files_info import schema_get_files_info
+from functions.get_files_info import schema_get_files_info, get_files_info
 
 system_prompt = """
 You are a helpful AI coding agent.
@@ -55,31 +55,41 @@ def main():
 
 
 def generate_content(client, messages, verbose):
-    available_functions = types.Tool(
-        function_declarations=[
-            schema_get_files_info,
-        ]
-    )
-
     config = types.GenerateContentConfig(
-        tools=[available_functions], system_instruction=system_prompt
+        tools=[types.Tool(function_declarations=[schema_get_files_info])],
+        system_instruction=system_prompt
     )
 
     response = client.models.generate_content(
         model="gemini-2.0-flash-001",
         contents=messages,
-        config = config,
+        config=config,
     )
 
-    
+    candidate = response.candidates[0]
+    called = False
+    for part in candidate.content.parts:
+        if part.function_call:
+            called = True
+            fc = part.function_call
+            print(f"Calling function: {fc.name}({fc.args})")
 
-    if verbose:
+            if fc.name == "get_files_info":
+                # Inject working dir (model never supplies this)
+                wd = os.getcwd()
+                directory = dict(fc.args or {}).get("directory", ".")
+                result = get_files_info(working_directory=wd, directory=directory)
+                print("\nFunction result:\n", result)
+        elif part.text:
+            print("Text:", part.text)
+
+    if verbose and hasattr(response, "usage_metadata") and response.usage_metadata:
         print("Prompt tokens:", response.usage_metadata.prompt_token_count)
         print("Response tokens:", response.usage_metadata.candidates_token_count)
-    
-    print("Response:")
-    print(response.text)
-    
+
+    if not called:
+        print("Response:")
+        print(response.text)    
 
 
 if __name__ == "__main__":
